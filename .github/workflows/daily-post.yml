@@ -1,0 +1,57 @@
+name: daily-instagram-post
+
+on:
+  schedule:
+    - cron: "0 10 * * *"   # 12:00 Sommerzeit (CEST)
+    - cron: "0 11 * * *"   # 12:00 Winterzeit (CET); der jeweils andere Lauf greift nicht (12-Uhr-Guard)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish today's post
+        env:
+          IG_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: "17841445655178570"
+          RAW_BASE: "https://raw.githubusercontent.com/${{ github.repository }}/main"
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+        run: python3 publish.py
+
+      - name: Commit posted.log
+        run: |
+          git config user.name "nondualnormal"
+          git config user.email "nondualnormal@users.noreply.github.com"
+          if ! git diff --quiet posted.log 2>/dev/null || [ -n "$(git status --porcelain posted.log)" ]; then
+            git add posted.log
+            git commit -m "posted $(date -u +%F)"
+            git push
+          fi
+
+      - name: Refresh IG token (verlaengert 60-Tage-Gueltigkeit)
+        if: always()
+        env:
+          IG_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          RESP=$(curl -s "https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${IG_TOKEN}") || true
+          NEW=$(echo "$RESP" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('access_token',''))" 2>/dev/null || true)
+          if [ -n "$NEW" ]; then
+            if [ "$NEW" != "$IG_TOKEN" ]; then
+              gh secret set IG_ACCESS_TOKEN --repo "${{ github.repository }}" --body "$NEW"
+              echo "Token erneuert und Secret aktualisiert."
+            else
+              echo "Token-Gueltigkeit verlaengert."
+            fi
+          else
+            echo "Hinweis: Token-Refresh nicht moeglich (evtl. Token juenger als 24h). Antwort: $RESP"
+          fi
