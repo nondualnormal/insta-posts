@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Veroeffentlicht den heutigen Post (Europe/Berlin) auf Instagram via Graph API.
-Laeuft in GitHub Actions. Erwartet env: IG_TOKEN, IG_USER_ID, RAW_BASE, FORCE (optional).
-"""
+"""Taeglicher Instagram-Post (Europe/Berlin): Video-Tag (reels/<datum>_*) hat Vorrang,
+sonst Bild (posts/<datum>_*). Zusaetzlich Story mit demselben Medium.
+env: IG_TOKEN, IG_USER_ID, RAW_BASE, FORCE (optional)."""
 import json
 import os
 import sys
@@ -23,7 +23,7 @@ def call(url, params=None, method="GET"):
     else:
         req = urllib.request.Request(url)
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=120) as r:
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         body = e.read().decode()
@@ -31,11 +31,10 @@ def call(url, params=None, method="GET"):
         raise SystemExit(1)
 
 
-def wait_ready(creation_id, token, tries=20, delay=4):
-    """Wartet, bis der Media-Container fertig verarbeitet ist."""
+def wait_ready(creation_id, token, tries=60, delay=5):
     import time as _t
     for _ in range(tries):
-        st = call(f"{API}/{creation_id}", {"fields": "status_code", "access_token": token}, method="GET")
+        st = call(f"{API}/{creation_id}", {"fields": "status_code", "access_token": token})
         if st.get("status_code") == "FINISHED":
             return
         if st.get("status_code") == "ERROR":
@@ -44,6 +43,36 @@ def wait_ready(creation_id, token, tries=20, delay=4):
         _t.sleep(delay)
     print("Container nicht rechtzeitig fertig.", file=sys.stderr)
     raise SystemExit(1)
+
+
+def publish_image(ig_id, token, image_url, caption):
+    c = call(f"{API}/{ig_id}/media", {"image_url": image_url, "caption": caption,
+                                      "access_token": token}, method="POST")
+    wait_ready(c["id"], token)
+    return call(f"{API}/{ig_id}/media_publish", {"creation_id": c["id"],
+                                                 "access_token": token}, method="POST")["id"]
+
+
+def publish_reel(ig_id, token, video_url, caption):
+    c = call(f"{API}/{ig_id}/media", {"media_type": "REELS", "video_url": video_url,
+                                      "caption": caption, "share_to_feed": "true",
+                                      "thumb_offset": "7000",
+                                      "access_token": token}, method="POST")
+    wait_ready(c["id"], token)
+    return call(f"{API}/{ig_id}/media_publish", {"creation_id": c["id"],
+                                                 "access_token": token}, method="POST")["id"]
+
+
+def publish_story(ig_id, token, media_url, is_video):
+    params = {"media_type": "STORIES", "access_token": token}
+    if is_video:
+        params["video_url"] = media_url
+    else:
+        params["image_url"] = media_url
+    c = call(f"{API}/{ig_id}/media", params, method="POST")
+    wait_ready(c["id"], token)
+    call(f"{API}/{ig_id}/media_publish", {"creation_id": c["id"],
+                                          "access_token": token}, method="POST")
 
 
 def main():
@@ -55,7 +84,6 @@ def main():
     now = datetime.now(ZoneInfo("Europe/Berlin"))
     today = now.strftime("%Y-%m-%d")
 
-    # Nur um/nach 12:00 lokal posten (zwei Cron-Zeiten decken Sommer-/Winterzeit ab)
     if not force and now.hour < 12:
         print(f"{now}: vor 12:00 lokal - kein Posting in diesem Lauf.")
         return
@@ -68,57 +96,45 @@ def main():
         print(f"{today}: bereits gepostet - nichts zu tun.")
         return
 
-    folders = sorted(d for d in os.listdir("posts") if d.startswith(today))
-    if not folders:
+    reel_folders = sorted(d for d in (os.listdir("reels") if os.path.isdir("reels") else [])
+                          if d.startswith(today))
+    img_folders = sorted(d for d in os.listdir("posts") if d.startswith(today))
+
+    if reel_folders:
+        folder = reel_folders[0]
+        with open(f"reels/{folder}/caption.txt", encoding="utf-8") as f:
+            caption = f.read().strip()
+        url = f"{raw_base}/reels/{urllib.parse.quote(folder)}/reel.mp4"
+        print(f"Poste REEL {folder} ...")
+        media_id = publish_reel(ig_id, token, url, caption)
+        kind = "REEL"
+        story_url, story_video = url, True
+    elif img_folders:
+        folder = img_folders[0]
+        with open(f"posts/{folder}/caption.txt", encoding="utf-8") as f:
+            caption = f.read().strip()
+        url = f"{raw_base}/posts/{urllib.parse.quote(folder)}/post.png"
+        print(f"Poste BILD {folder} ...")
+        media_id = publish_image(ig_id, token, url, caption)
+        kind = "BILD"
+        story_url, story_video = url, False
+    else:
         print(f"{today}: kein Post-Ordner vorhanden - nichts zu tun.")
         return
-    folder = folders[0]
 
-    with open(f"posts/{folder}/caption.txt", encoding="utf-8") as f:
-        caption = f.read().strip()
-    image_url = f"{raw_base}/posts/{urllib.parse.quote(folder)}/post.png"
-    print(f"Poste {folder} ...")
-
-    c = call(f"{API}/{ig_id}/media", {
-        "image_url": image_url,
-        "caption": caption,
-        "access_token": token,
-    }, method="POST")
-    creation_id = c["id"]
-    wait_ready(creation_id, token)
-
-    p = call(f"{API}/{ig_id}/media_publish", {
-        "creation_id": creation_id,
-        "access_token": token,
-    }, method="POST")
-    media_id = p["id"]
-
-    info = call(f"{API}/{media_id}", {
-        "fields": "permalink",
-        "access_token": token,
-    })
+    info = call(f"{API}/{media_id}", {"fields": "permalink", "access_token": token})
     permalink = info.get("permalink", "?")
-    print(f"Veroeffentlicht: {permalink}")
-
-
-    # Zusaetzlich als Story ausspielen (best effort - Fehler stoppen den Lauf nicht)
-    try:
-        st = call(f"{API}/{ig_id}/media", {
-            "image_url": image_url,
-            "media_type": "STORIES",
-            "access_token": token,
-        }, method="POST")
-        wait_ready(st["id"], token)
-        call(f"{API}/{ig_id}/media_publish", {
-            "creation_id": st["id"],
-            "access_token": token,
-        }, method="POST")
-        print("Story veroeffentlicht.")
-    except SystemExit:
-        print("Story fehlgeschlagen - Feed-Post war aber erfolgreich.")
+    print(f"Veroeffentlicht ({kind}): {permalink}")
 
     with open("posted.log", "a", encoding="utf-8") as f:
-        f.write(f"{today} {folder} {permalink}\n")
+        f.write(f"{today} {folder} [{kind}] {permalink}\n")
+
+    # Story (best effort)
+    try:
+        publish_story(ig_id, token, story_url, story_video)
+        print("Story veroeffentlicht.")
+    except SystemExit:
+        print("Story fehlgeschlagen - Hauptpost war erfolgreich.")
 
 
 if __name__ == "__main__":
