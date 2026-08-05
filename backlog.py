@@ -34,6 +34,21 @@ def call(url, params, method="POST"):
         raise SystemExit(1)
 
 
+def wait_ready(creation_id, token, tries=20, delay=4):
+    """Wartet, bis der Media-Container fertig verarbeitet ist."""
+    import time as _t
+    for _ in range(tries):
+        st = call(f"{API}/{creation_id}", {"fields": "status_code", "access_token": token}, method="GET")
+        if st.get("status_code") == "FINISHED":
+            return
+        if st.get("status_code") == "ERROR":
+            print(f"Container-Fehler: {st}", file=sys.stderr)
+            raise SystemExit(1)
+        _t.sleep(delay)
+    print("Container nicht rechtzeitig fertig.", file=sys.stderr)
+    raise SystemExit(1)
+
+
 def main():
     token = os.environ["IG_TOKEN"].strip()
     ig_id = os.environ["IG_USER_ID"].strip()
@@ -51,6 +66,7 @@ def main():
         print(f"Poste {folder} ...")
         c = call(f"{API}/{ig_id}/media", {
             "image_url": image_url, "caption": caption, "access_token": token})
+        wait_ready(c["id"], token)
         p = call(f"{API}/{ig_id}/media_publish", {
             "creation_id": c["id"], "access_token": token})
         info = call(f"{API}/{p['id']}", {
