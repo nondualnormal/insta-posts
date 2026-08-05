@@ -100,6 +100,23 @@ def main():
     permalink = info.get("permalink", "?")
     print(f"Veroeffentlicht: {permalink}")
 
+
+    # Zusaetzlich als Story ausspielen (best effort - Fehler stoppen den Lauf nicht)
+    try:
+        st = call(f"{API}/{ig_id}/media", {
+            "image_url": image_url,
+            "media_type": "STORIES",
+            "access_token": token,
+        }, method="POST")
+        wait_ready(st["id"], token)
+        call(f"{API}/{ig_id}/media_publish", {
+            "creation_id": st["id"],
+            "access_token": token,
+        }, method="POST")
+        print("Story veroeffentlicht.")
+    except SystemExit:
+        print("Story fehlgeschlagen - Feed-Post war aber erfolgreich.")
+
     with open("posted.log", "a", encoding="utf-8") as f:
         f.write(f"{today} {folder} {permalink}\n")
 
