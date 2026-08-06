@@ -84,8 +84,8 @@ def main():
     now = datetime.now(ZoneInfo("Europe/Berlin"))
     today = now.strftime("%Y-%m-%d")
 
-    if not force and now.hour < 12:
-        print(f"{now}: vor 12:00 lokal - kein Posting in diesem Lauf.")
+    if not force and now.hour < 9:
+        print(f"{now}: vor 09:00 lokal - kein Posting in diesem Lauf.")
         return
 
     posted = set()
