@@ -27,12 +27,36 @@ jobs:
           FORCE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
         run: python3 publish.py
 
-      - name: Commit posted.log
+      - name: Tweet today's quote (X)
+        if: always()
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+        run: python3 post_tweet.py
+
+      - name: Post reel to TikTok
+        if: always()
+        env:
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+          TIKTOK_PRIVACY: ${{ vars.TIKTOK_PRIVACY }}
+          RAW_BASE: "https://raw.githubusercontent.com/${{ github.repository }}/main"
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+        run: python3 post_tiktok.py
+
+      - name: Commit logs
+        if: always()
         run: |
           git config user.name "nondualnormal"
           git config user.email "nondualnormal@users.noreply.github.com"
-          if ! git diff --quiet posted.log 2>/dev/null || [ -n "$(git status --porcelain posted.log)" ]; then
-            git add posted.log
+          for f in posted.log tweeted.log tiktoked.log; do
+            [ -f "$f" ] && git add "$f" || true
+          done
+          if ! git diff --cached --quiet; then
             git commit -m "posted $(date -u +%F)"
             git push
           fi
