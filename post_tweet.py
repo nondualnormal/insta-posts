@@ -19,6 +19,29 @@ from zoneinfo import ZoneInfo
 TWEET_URL = "https://api.twitter.com/2/tweets"
 MAX_LEN = 280
 
+# Dezente, wechselnde Emojis: erst Stichwort-Match im Zitat, sonst Tagesrotation.
+EMOJI_KEYWORDS = [
+    (("freedom", "free", "peace", "war"), "\U0001F54A️"),   # 🕊️
+    (("love", "heart"), "\U0001F90D"),                            # 🤍
+    (("silence", "stillness", "quiet", "rest", "calm"), "\U0001F319"),  # 🌙
+    (("nature", "alive", "breath", "life"), "\U0001F33F"),        # 🌿
+    (("light", "sun", "shine", "bright"), "☀️"),        # ☀️
+    (("sacred", "holy", "presence", "wonder"), "✨"),         # ✨
+    (("water", "flow", "river", "sea", "ocean"), "\U0001F30A"),   # 🌊
+    (("let go", "letting go", "surrender", "release"), "\U0001F343"),  # 🍃
+    (("joy", "play", "smile"), "\U0001F338"),                     # 🌸
+]
+EMOJI_ROTATION = ["\U0001FAB7", "\U0001F33F", "✨", "\U0001F319",
+                  "☀️", "\U0001F343", "\U0001F338", "\U0001F4AB"]
+
+
+def pick_emoji(text, day_of_year):
+    low = text.lower()
+    for keys, emoji in EMOJI_KEYWORDS:
+        if any(k in low for k in keys):
+            return emoji
+    return EMOJI_ROTATION[day_of_year % len(EMOJI_ROTATION)]
+
 
 def pct(s):
     return urllib.parse.quote(str(s), safe="~-._")
@@ -84,10 +107,15 @@ def main():
     if not text:
         print(f"{today}: kein Post-Ordner vorhanden - kein Tweet.")
         return
-    if len(text) > MAX_LEN:
+    emoji = pick_emoji(text, now.timetuple().tm_yday)
+    decorated = f"{text}\n\n{emoji}"
+    if len(decorated) <= MAX_LEN:
+        text = decorated
+    elif len(text) > MAX_LEN:
         print(f"WARNUNG: Zitat hat {len(text)} Zeichen (> {MAX_LEN}) - Tweet uebersprungen "
               "(nicht kuerzen).", file=sys.stderr)
         return
+    # sonst: Zitat passt nur ohne Emoji -> ohne Emoji posten
 
     body = json.dumps({"text": text}).encode()
     req = urllib.request.Request(TWEET_URL, data=body, method="POST", headers={
