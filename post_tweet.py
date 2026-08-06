@@ -21,7 +21,7 @@ MAX_LEN = 280
 
 # Dezente, wechselnde Emojis: erst Stichwort-Match im Zitat, sonst Tagesrotation.
 EMOJI_KEYWORDS = [
-    (("freedom", "free", "peace", "war"), "\U0001F54A️"),   # 🕊️
+    (("freedom", "free", "peace", "war"), "\U0001F305"),          # 🌅
     (("love", "heart"), "\U0001F90D"),                            # 🤍
     (("silence", "stillness", "quiet", "rest", "calm"), "\U0001F319"),  # 🌙
     (("nature", "alive", "breath", "life"), "\U0001F33F"),        # 🌿
@@ -108,7 +108,7 @@ def main():
         print(f"{today}: kein Post-Ordner vorhanden - kein Tweet.")
         return
     emoji = pick_emoji(text, now.timetuple().tm_yday)
-    decorated = f"{text}\n\n{emoji}"
+    decorated = f"{emoji} {text}"
     if len(decorated) <= MAX_LEN:
         text = decorated
     elif len(text) > MAX_LEN:
