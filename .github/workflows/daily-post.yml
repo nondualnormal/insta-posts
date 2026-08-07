@@ -2,8 +2,8 @@ name: daily-instagram-post
 
 on:
   schedule:
-    - cron: "0 7 * * *"    # 09:00 Sommerzeit (CEST)
-    - cron: "0 8 * * *"    # 09:00 Winterzeit (CET); der jeweils andere Lauf greift nicht (9-Uhr-Guard)
+    - cron: "3 7 * * *"    # ~09:03 Sommerzeit (CEST); unrunde Minute = weniger Cron-Verzug
+    - cron: "3 8 * * *"    # ~09:03 Winterzeit (CET); der jeweils andere Lauf greift nicht (9-Uhr-Guard)
   workflow_dispatch:
 
 permissions:
