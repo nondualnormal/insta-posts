@@ -64,20 +64,21 @@ def oauth1_header(method, url, api_key, api_secret, token, token_secret):
     return "OAuth " + ", ".join(f'{pct(k)}="{pct(v)}"' for k, v in sorted(p.items()))
 
 
-def find_today_caption(today):
-    """Gleiche Logik wie publish.py: Reel-Ordner hat Vorrang, sonst Bild-Ordner."""
-    reel = sorted(d for d in (os.listdir("reels") if os.path.isdir("reels") else [])
-                  if d.startswith(today))
-    img = sorted(d for d in (os.listdir("posts") if os.path.isdir("posts") else [])
-                 if d.startswith(today))
-    if reel:
-        folder, path = reel[0], f"reels/{reel[0]}/caption.txt"
-    elif img:
-        folder, path = img[0], f"posts/{img[0]}/caption.txt"
-    else:
-        return None, None
-    with open(path, encoding="utf-8") as f:
-        return folder, f.read().strip()
+def find_quote_for(date_str):
+    """Versatz-Algorithmus: X postet das ZITAT (quote.txt) eines aelteren Tages.
+    Sucht den Tagesordner in posts/, reels/ und published/; quote.txt bevorzugt,
+    caption.txt als Fallback."""
+    for base in ("posts", "reels", "published"):
+        if not os.path.isdir(base):
+            continue
+        hits = sorted(d for d in os.listdir(base) if d.startswith(date_str))
+        for folder in hits:
+            for fname in ("quote.txt", "caption.txt"):
+                path = f"{base}/{folder}/{fname}"
+                if os.path.exists(path):
+                    with open(path, encoding="utf-8") as f:
+                        return folder, f.read().strip()
+    return None, None
 
 
 def main():
@@ -103,7 +104,13 @@ def main():
         print(f"{today}: bereits getweetet - nichts zu tun.")
         return
 
-    folder, text = find_today_caption(today)
+    # Versatz: X bekommt das Zitat von VORGESTERN (T-2) -> nie derselbe Text wie
+    # der heutige Instagram-Post. Fallback: heutiges Zitat, wenn T-2 fehlt.
+    from datetime import timedelta
+    source_date = (now - timedelta(days=2)).strftime("%Y-%m-%d")
+    folder, text = find_quote_for(source_date)
+    if not text:
+        folder, text = find_quote_for(today)
     if not text:
         print(f"{today}: kein Post-Ordner vorhanden - kein Tweet.")
         return
