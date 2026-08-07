@@ -92,8 +92,8 @@ def main():
 
     now = datetime.now(ZoneInfo("Europe/Berlin"))
     today = now.strftime("%Y-%m-%d")
-    if not force and now.hour < 9:
-        print(f"{now}: vor 09:00 lokal - kein Tweet in diesem Lauf.")
+    if not force and now.hour < 7:
+        print(f"{now}: vor 07:00 lokal - kein Tweet in diesem Lauf.")
         return
 
     tweeted = set()
