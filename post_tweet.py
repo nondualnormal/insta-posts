@@ -104,11 +104,14 @@ def main():
         print(f"{today}: bereits getweetet - nichts zu tun.")
         return
 
-    # Versatz: X bekommt das Zitat von VORGESTERN (T-2) -> nie derselbe Text wie
-    # der heutige Instagram-Post. Fallback: heutiges Zitat, wenn T-2 fehlt.
+    # Versatz: X bekommt das Zitat von UEBERMORGEN (T+2) -> nie derselbe Text wie
+    # der heutige Instagram-Post; am Monatsersten ist der Monat frisch generiert,
+    # T+2 existiert also. Am Monatsende (T+2 noch nicht generiert) Fallback auf
+    # VORGESTERN (T-2), notfalls auf heute.
     from datetime import timedelta
-    source_date = (now - timedelta(days=2)).strftime("%Y-%m-%d")
-    folder, text = find_quote_for(source_date)
+    folder, text = find_quote_for((now + timedelta(days=2)).strftime("%Y-%m-%d"))
+    if not text:
+        folder, text = find_quote_for((now - timedelta(days=2)).strftime("%Y-%m-%d"))
     if not text:
         folder, text = find_quote_for(today)
     if not text:
