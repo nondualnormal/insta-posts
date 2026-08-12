@@ -1,2 +1,1 @@
-Aendern und pushen loest einen Lauf aus (Not-Hebel).
-letzter manueller Trigger: 2026-08-11 10:15 CEST
+2026-08-12 08:22:56 CEST
