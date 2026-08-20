@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Taeglicher Instagram-Post (Europe/Berlin): Video-Tag (reels/<datum>_*) hat Vorrang,
+"""Instagram-Post (Europe/Berlin), bis zu 2x taeglich: Video (reels/<datum>*_*) hat Vorrang,
 sonst Bild (posts/<datum>_*). Zusaetzlich Story mit demselben Medium.
-env: IG_TOKEN, IG_USER_ID, RAW_BASE, FORCE (optional)."""
+env: IG_TOKEN, IG_USER_ID, RAW_BASE, FORCE, EVENING_HOUR (Default 19)."""
 import json
 import os
 import sys
@@ -83,22 +83,33 @@ def main():
 
     now = datetime.now(ZoneInfo("Europe/Berlin"))
     today = now.strftime("%Y-%m-%d")
+    evening = int(os.environ.get("EVENING_HOUR", "19"))
 
     if not force and now.hour < 7:
         print(f"{now}: vor 07:00 lokal - kein Posting in diesem Lauf.")
         return
 
-    posted = set()
+    # Idempotenz je ORDNER (es koennen mehrere Posts pro Tag sein)
+    posted_folders, posted_today = set(), 0
     if os.path.exists("posted.log"):
         with open("posted.log") as f:
-            posted = {line.split()[0] for line in f if line.strip()}
-    if today in posted:
-        print(f"{today}: bereits gepostet - nichts zu tun.")
+            for line in f:
+                p = line.split()
+                if len(p) >= 2:
+                    posted_folders.add(p[1])
+                    if p[0] == today:
+                        posted_today += 1
+
+    # Slot-Regel: hoechstens 1 Post vor dem Abend, hoechstens 2 am Tag
+    limit = 2 if (force or now.hour >= evening) else 1
+    if posted_today >= limit:
+        print(f"{today}: schon {posted_today} Post(s) heute (Limit {limit}) - nichts zu tun.")
         return
 
     reel_folders = sorted(d for d in (os.listdir("reels") if os.path.isdir("reels") else [])
-                          if d.startswith(today))
-    img_folders = sorted(d for d in os.listdir("posts") if d.startswith(today))
+                          if d.startswith(today) and d not in posted_folders)
+    img_folders = sorted(d for d in os.listdir("posts")
+                         if d.startswith(today) and d not in posted_folders)
 
     if reel_folders:
         folder = reel_folders[0]
@@ -127,9 +138,12 @@ def main():
     print(f"Veroeffentlicht ({kind}): {permalink}")
 
     with open("posted.log", "a", encoding="utf-8") as f:
-        f.write(f"{today} {folder} [{kind}] {permalink}\n")
+        f.write(f"{today} {folder} [{kind}] {permalink} {media_id}\n")
 
-    # Story (best effort)
+    # Story (best effort) - nur beim ersten Post des Tages
+    if posted_today > 0:
+        print("Zweiter Post des Tages - keine zweite Story.")
+        return
     try:
         publish_story(ig_id, token, story_url, story_video)
         print("Story veroeffentlicht.")

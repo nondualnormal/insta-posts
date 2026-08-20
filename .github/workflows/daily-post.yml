@@ -12,6 +12,11 @@ on:
     - cron: "3 7 * * *"     # 09:03 CEST / 08:03 CET
     - cron: "33 7 * * *"    # 09:33 CEST / 08:33 CET
     - cron: "3 8 * * *"     # 10:03 CEST / 09:03 CET
+    # zweiter Slot am Abend (ab 19:00 lokal, Guard in publish.py)
+    - cron: "3 17 * * *"    # 19:03 CEST
+    - cron: "33 17 * * *"   # 19:33 CEST
+    - cron: "3 18 * * *"    # 20:03 CEST / 19:03 CET
+    - cron: "33 18 * * *"   # 20:33 CEST / 19:33 CET
   push:
     paths:
       - "trigger.txt"       # Not-Hebel: Datei aendern und pushen loest sofort einen Lauf aus
@@ -35,6 +40,7 @@ jobs:
           IG_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: "17841445655178570"
           RAW_BASE: "https://raw.githubusercontent.com/${{ github.repository }}/main"
+          EVENING_HOUR: "19"
           FORCE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
         run: python3 publish.py
 
@@ -59,12 +65,19 @@ jobs:
           FORCE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
         run: python3 post_tiktok.py
 
+      - name: Collect insights
+        if: always()
+        env:
+          IG_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: "17841445655178570"
+        run: python3 collect_insights.py
+
       - name: Commit logs
         if: always()
         run: |
           git config user.name "nondualnormal"
           git config user.email "nondualnormal@users.noreply.github.com"
-          for f in posted.log tweeted.log tiktoked.log; do
+          for f in posted.log tweeted.log tiktoked.log metrics.csv; do
             [ -f "$f" ] && git add "$f" || true
           done
           if ! git diff --cached --quiet; then
