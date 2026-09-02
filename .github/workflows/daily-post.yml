@@ -12,11 +12,12 @@ on:
     - cron: "3 7 * * *"     # 09:03 CEST / 08:03 CET
     - cron: "33 7 * * *"    # 09:33 CEST / 08:33 CET
     - cron: "3 8 * * *"     # 10:03 CEST / 09:03 CET
-    # zweiter Slot am Abend (ab 19:00 lokal, Guard in publish.py)
-    - cron: "3 17 * * *"    # 19:03 CEST
-    - cron: "33 17 * * *"   # 19:33 CEST
-    - cron: "3 18 * * *"    # 20:03 CEST / 19:03 CET
-    - cron: "33 18 * * *"   # 20:33 CEST / 19:33 CET
+    # Abend-Slot entfaellt seit 02.09.2026 (zurueck auf EINEN Beitrag pro Tag).
+    # Zum Reaktivieren: diese vier Zeilen einkommentieren und POSTS_PER_DAY auf 2 setzen.
+    # - cron: "3 17 * * *"    # 19:03 CEST
+    # - cron: "33 17 * * *"   # 19:33 CEST
+    # - cron: "3 18 * * *"    # 20:03 CEST / 19:03 CET
+    # - cron: "33 18 * * *"   # 20:33 CEST / 19:33 CET
   push:
     paths:
       - "trigger.txt"       # Not-Hebel: Datei aendern und pushen loest sofort einen Lauf aus
@@ -41,6 +42,7 @@ jobs:
           IG_USER_ID: "17841445655178570"
           RAW_BASE: "https://raw.githubusercontent.com/${{ github.repository }}/main"
           EVENING_HOUR: "19"
+          POSTS_PER_DAY: "1"   # 02.09.2026: ein Beitrag pro Tag
           FORCE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
         run: python3 publish.py
 

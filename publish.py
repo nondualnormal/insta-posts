@@ -100,8 +100,12 @@ def main():
                     if p[0] == today:
                         posted_today += 1
 
-    # Slot-Regel: hoechstens 1 Post vor dem Abend, hoechstens 2 am Tag
-    limit = 2 if (force or now.hour >= evening) else 1
+    # EIN Beitrag pro Tag (Festlegung 02.09.2026, Sascha: zurueck auf 1x taeglich).
+    # Ueber POSTS_PER_DAY im Workflow umstellbar; bei 2 gilt wieder die alte
+    # Slot-Regel: hoechstens 1 Post vor dem Abend, hoechstens 2 am Tag.
+    limit = int(os.environ.get("POSTS_PER_DAY", "1"))
+    if limit > 1 and not (force or now.hour >= evening):
+        limit = 1
     if posted_today >= limit:
         print(f"{today}: schon {posted_today} Post(s) heute (Limit {limit}) - nichts zu tun.")
         return
