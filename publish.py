@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Instagram-Post (Europe/Berlin), bis zu 2x taeglich: Video (reels/<datum>*_*) hat Vorrang,
-sonst Bild (posts/<datum>_*). Zusaetzlich Story mit demselben Medium.
-env: IG_TOKEN, IG_USER_ID, RAW_BASE, FORCE, EVENING_HOUR (Default 19)."""
+"""Instagram-Post (Europe/Berlin), standardmaessig 1x taeglich zu taeglich wechselnder
+Uhrzeit zwischen 07:00 und 10:00: Video (reels/<datum>*_*) hat Vorrang, sonst Bild
+(posts/<datum>_*). Zusaetzlich Story mit demselben Medium.
+env: IG_TOKEN, IG_USER_ID, RAW_BASE, FORCE, POSTS_PER_DAY (Default 1), EVENING_HOUR (19)."""
+import hashlib
 import json
 import os
 import sys
@@ -85,8 +87,18 @@ def main():
     today = now.strftime("%Y-%m-%d")
     evening = int(os.environ.get("EVENING_HOUR", "19"))
 
-    if not force and now.hour < 7:
-        print(f"{now}: vor 07:00 lokal - kein Posting in diesem Lauf.")
+    # Postzeit streut taeglich (Festlegung 02.09.2026). Vorher ging jeder Beitrag
+    # punktgenau im ersten 07:03-Slot raus - ein Muster, das nach Automat aussieht.
+    # Jetzt bestimmt das Datum deterministisch einen der vorhandenen Cron-Slots
+    # zwischen 07:00 und 10:00; frueher laufende Slots tun an dem Tag nichts.
+    # Deterministisch heisst: mehrere Laeufe am selben Tag kommen zum selben Ergebnis,
+    # also bleibt der Not-Hebel ueber trigger.txt berechenbar.
+    slots = [(7, 0), (7, 30), (8, 0), (8, 30), (9, 0), (9, 30), (10, 0)]
+    h = int(hashlib.md5(today.encode()).hexdigest(), 16)
+    ziel_h, ziel_m = slots[h % len(slots)]
+    if not force and (now.hour, now.minute) < (ziel_h, ziel_m):
+        print(f"{now}: heutige Postzeit ist {ziel_h:02d}:{ziel_m:02d} - "
+              f"dieser Lauf ist zu frueh.")
         return
 
     # Idempotenz je ORDNER (es koennen mehrere Posts pro Tag sein)
