@@ -1,1 +1,1 @@
-trigger 2026-11-18 10:19:57
+trigger 2026-11-19T09:19:53Z wecker
